@@ -248,11 +248,9 @@
 
     const bottomY = state.rows - 1;
     for (let x = 0; x < state.cols; x++) {
-      let b = null;
-      if (Math.random() < 0.75) {
-        b = createBlock(x, bottomY, Math.floor(Math.random() * state.colorsCount));
-        b.py = (bottomY + 1) * cw + Math.random() * (cw * 0.6); // start below the field
-      }
+      const b = createBlock(x, bottomY, Math.floor(Math.random() * state.colorsCount));
+      // start below the field so it's visible in the preview band and slides up
+      b.py = (bottomY + 1) * cw + Math.random() * (cw * 0.6);
       newGrid[bottomY][x] = b;
     }
 
@@ -277,11 +275,10 @@
     const cw = state.cell;
     const y = state.rows - 1;
     for (let x = 0; x < state.cols; x++) {
-      if (Math.random() < 0.75) {
-        const b = createBlock(x, y, Math.floor(Math.random() * state.colorsCount));
-        b.py = (y + 1) * cw + Math.random() * (cw * 0.6); // start below and slide in
-        state.grid[y][x] = b;
-      }
+      const b = createBlock(x, y, Math.floor(Math.random() * state.colorsCount));
+      // start below and slide in
+      b.py = (y + 1) * cw + Math.random() * (cw * 0.6);
+      state.grid[y][x] = b;
     }
     applyGravityAnimated();
   }
