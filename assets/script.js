@@ -127,7 +127,9 @@
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     const cw = state.cell;
-    const gap = 1; // 1px spacing between blocks
+    // smaller horizontal gap to address \"x gap too big\" feedback; keep 1px vertical gap
+    const gapX = 0.5;
+    const gapY = 1;
 
     // background
     ctx.fillStyle = '#0f1117';
@@ -141,11 +143,12 @@
 
         const drawY = b.py - state.riseOffsetPx;
 
-        const bx = b.x * cw + gap * 0.5;
-        const by = drawY + gap * 0.5;
-        const bw = cw - gap;
-        const bh = cw - gap;
-        const r = Math.max(2, Math.round(cw * 0.18));
+        // integer rounding to avoid half-pixel overflow/clipping at canvas edges
+        const bx = Math.floor(b.x * cw + gapX);
+        const by = Math.floor(drawY + gapY);
+        const bw = Math.ceil(cw - 2 * gapX);
+        const bh = Math.ceil(cw - 2 * gapY);
+        const r = Math.max(2, Math.round(cw * 0.16));
 
         ctx.fillStyle = state.palette[b.color % state.palette.length];
         roundRectPath(ctx, bx, by, bw, bh, r);
