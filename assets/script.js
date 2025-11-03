@@ -88,6 +88,18 @@
     };
   }
 
+  // Utility: rounded rectangle path
+  function roundRectPath(ctx, x, y, w, h, r) {
+    const rr = Math.max(0, Math.min(r, Math.min(w, h) / 2));
+    ctx.beginPath();
+    ctx.moveTo(x + rr, y);
+    ctx.lineTo(x + w - rr, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + rr);
+    ctx.lineTo(x + w, y + h - rr);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - rr, y + h);
+    ctx.lineTo(x + rr, y + h);
+    ctx.quadraticCurveTo }
+
   function resizeCanvas() {
     const container = document.querySelector('.game');
     const availableW = container.clientWidth - 8;
@@ -115,11 +127,13 @@
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     const cw = state.cell;
+    const gap = 1; // 1px spacing between blocks
 
+    // background
     ctx.fillStyle = '#0f1117';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // draw blocks using continuous rising offset
+    // draw blocks with rounded corners and spacing, using continuous rising offset
     for (let y = 0; y < state.rows; y++) {
       for (let x = 0; x < state.cols; x++) {
         const b = state.grid[y][x];
@@ -127,38 +141,25 @@
 
         const drawY = b.py - state.riseOffsetPx;
 
-        ctx.fillStyle = state.palette[b.color % state.palette.length];
-        ctx.fillRect(b.x * cw, drawY, cw, cw);
+        const bx = b.x * cw + gap * 0.5;
+        const by = drawY + gap * 0.5;
+        const bw = cw - gap;
+        const bh = cw - gap;
+        const r = Math.max(2, Math.round(cw * 0.18));
 
-        ctx.fillStyle = 'rgba(0,0,0,0.12)';
-        ctx.fillRect(b.x * cw, drawY, cw, 4);
-        ctx.fillStyle = 'rgba(255,255,255,0.12)';
-        ctx.fillRect(b.x * cw, drawY + cw - 4, cw, 4);
+        ctx.fillStyle = state.palette[b.color % state.palette.length];
+        roundRectPath(ctx, bx, by, bw, bh, r);
+        ctx.fill();
       }
     }
 
-    // grid lines
-    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
-    ctx.lineWidth = 1;
-    for (let x = 0; x <= state.cols; x++) {
-      ctx.beginPath();
-      ctx.moveTo(x * cw + 0.5, 0);
-      ctx.lineTo(x * cw + 0.5, state.rows * cw);
-      ctx.stroke();
-    }
-    for (let y = 0; y <= state.rows; y++) {
-      ctx.beginPath();
-      ctx.moveTo(0, y * cw + 0.5);
-      ctx.lineTo(state.cols * cw, y * cw + 0.5);
-      ctx.stroke();
-    }
+    // no grid lines; spacing provides the separation
   }
 
   function updateAnimations() {
     const cw = state.cell;
     const g = 0.09 * cw;
     const maxVy = 0.85 * cw;
-    const riseSpeed = 0.22 * cw;
 
     for (let y = 0; y < state.rows; y++) {
       for (let x = 0; x < state.cols; x++) {
@@ -175,11 +176,13 @@
         }
 
         if (dy > 0) {
+          // Only animate falling due to gravity
           b.vy = Math.min(maxVy, b.vy + g);
           b.py = Math.min(targetPy, b.py + b.vy);
         } else {
-          b.vy = -riseSpeed;
-          b.py = Math.max(targetPy, b.py + b.vy);
+          // Do not animate upward; snap to target to avoid slide-in effect
+          b.py = targetPy;
+          b.vy = 0;
         }
       }
     }
@@ -248,9 +251,9 @@
 
     const bottomY = state.rows - 1;
     for (let x = 0; x < state.cols; x++) {
+      // Always fill bottom row, start exactly one cell below for continuous rise
       const b = createBlock(x, bottomY, Math.floor(Math.random() * state.colorsCount));
-      // start below the field so it's visible in the preview band and slides up
-      b.py = (bottomY + 1) * cw + Math.random() * (cw * 0.6);
+      b.py = (bottomY + 1) * cw;
       newGrid[bottomY][x] = b;
     }
 
@@ -276,8 +279,8 @@
     const y = state.rows - 1;
     for (let x = 0; x < state.cols; x++) {
       const b = createBlock(x, y, Math.floor(Math.random() * state.colorsCount));
-      // start below and slide in
-      b.py = (y + 1) * cw + Math.random() * (cw * 0.6);
+      // Start exactly one cell below, no slide-in randomness
+      b.py = (y + 1) * cw;
       state.grid[y][x] = b;
     }
     applyGravityAnimated();
