@@ -32,8 +32,8 @@
     running: false,
     boosting: false,
     // speed control: intervalMs is the time (ms) to rise one cell height
-    intervalMs: 3200,
-    initialIntervalMs: 3200,
+    intervalMs: 6400,
+    initialIntervalMs: 6400,
     minIntervalMs: 600,
     rampStepMs: 6,          // speed ramps up by reducing intervalMs by 6ms per row added
     speedBoostFactor: 0.35, // while space is held, interval is multiplied by this factor
@@ -92,10 +92,11 @@
     const container = document.querySelector('.game');
     const availableW = container.clientWidth - 8;
     const availableH = container.clientHeight - 8;
-    const size = Math.floor(Math.min(availableW / state.cols, availableH / state.rows));
+    // include one extra visual row so the next row is visible while sliding in
+    const size = Math.floor(Math.min(availableW / state.cols, availableH / (state.rows + 1)));
     state.cell = Math.max(size, 8);
     canvas.width = state.cols * state.cell;
-    canvas.height = state.rows * state.cell;
+    canvas.height = (state.rows + 1) * state.cell;
 
     // snap positions after resize
     for (let y = 0; y < state.rows; y++) {
@@ -365,7 +366,8 @@
     const cx = ev.clientX - rect.left;
     const cy = ev.clientY - rect.top;
     const x = Math.floor(cx / state.cell);
-    const y = Math.floor(cy / state.cell);
+    // account for continuous rising offset in click mapping
+    const y = Math.floor((cy + state.riseOffsetPx) / state.cell);
     if (!inBounds(x, y)) return;
 
     const b = state.grid[y][x];
