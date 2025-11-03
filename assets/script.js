@@ -1,4 +1,4 @@
-// Rising Blocks Game
+// Rising Blocks Game - animated spawn and gravity, slower speed, new field size
 
 (function () {
   'use strict';
@@ -21,25 +21,27 @@
   const closeSettingsBtn = document.getElementById('closeSettingsBtn');
 
   // Game state
+  let nextId = 1;
   const state = {
-    cols: 30,
-    rows: 20,
+    cols: 24,
+    rows: 16,
     grid: [],
     colorsCount: 5,
     palette: [],
     score: 0,
     running: false,
     boosting: false,
-    // speed control
-    intervalMs: 1600,
-    initialIntervalMs: 1600,
-    minIntervalMs: 500,
+    // speed control (slower by ~50%)
+    intervalMs: 3200,
+    initialIntervalMs: 3200,
+    minIntervalMs: 600,
     rampStepMs: 6,
     speedBoostFactor: 0.35, // lower is faster while space is held
     spawnTimer: null,
-    // rendering
+    // rendering and animation
     cell: 24,
-    orientation: null
+    orientation: null,
+    animFrameId: null
   };
 
   // Utils
@@ -57,11 +59,11 @@
     const changed = o !== state.orientation;
     state.orientation = o;
     if (o === 'landscape') {
-      state.cols = 30;
-      state.rows = 20;
+      state.cols = 24;
+      state.rows = 16;
     } else {
-      state.cols = 20;
-      state.rows = 30;
+      state.cols = 16;
+      state.rows = 24;
     }
     return changed;
   }
@@ -74,6 +76,17 @@
     }
   }
 
+  function createBlock(x, y, color) {
+    return {
+      id: nextId++,
+      x, y,
+      color,
+      px: x * state.cell,
+      py: y * state.cell,
+      vy: 0
+    };
+  }
+
   function resizeCanvas() {
     const container = document.querySelector('.game');
     const availableW = container.clientWidth - 8;  // padding allowance
@@ -82,36 +95,43 @@
     state.cell = Math.max(size, 8);
     canvas.width = state.cols * state.cell;
     canvas.height = state.rows * state.cell;
-    requestRender();
-  }
-
-  function requestRender() {
-    // render on next frame
-    window.requestAnimationFrame(render);
+    // snap current block positions to grid on resize for simplicity
+    for (let y = 0; y < state.rows; y++) {
+      for (let x = 0; x < state.cols; x++) {
+        const b = state.grid[y][x];
+        if (b) {
+          b.px = b.x * state.cell;
+          b.py = b.y * state.cell; // reset animation progress after resize
+          b.vy = 0;
+        }
+      }
+    }
   }
 
   function render() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // draw cells
     const cw = state.cell;
+
+    // draw grid background subtly
+    ctx.fillStyle = '#0f1117';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // draw blocks
     for (let y = 0; y < state.rows; y++) {
       for (let x = 0; x < state.cols; x++) {
-        const v = state.grid[y][x];
-        if (v !== null) {
-          ctx.fillStyle = state.palette[v % state.palette.length];
-          ctx.fillRect(x * cw, y * cw, cw, cw);
+        const b = state.grid[y][x];
+        if (!b) continue;
 
-          // subtle inner shading
-          ctx.fillStyle = 'rgba(0,0,0,0.10)';
-          ctx.fillRect(x * cw, y * cw, cw, 4);
-          ctx.fillStyle = 'rgba(255,255,255,0.10)';
-          ctx.fillRect(x * cw, y * cw + cw - 4, cw, 4);
-        } else {
-          // draw faint background grid for empty
-          ctx.fillStyle = '#0c0e15';
-          ctx.fillRect(x * cw, y * cw, cw, cw);
-        }
+        // draw block at animated position
+        ctx.fillStyle = state.palette[b.color % state.palette.length];
+        ctx.fillRect(b.x * cw, b.py, cw, cw);
+
+        // subtle inner shading
+        ctx.fillStyle = 'rgba(0,0,0,0.12)';
+        ctx.fillRect(b.x * cw, b.py, cw, 4);
+        ctx.fillStyle = 'rgba(255,255,255,0.12)';
+        ctx.fillRect(b.x * cw, b.py + cw - 4, cw, 4);
       }
     }
 
@@ -129,6 +149,39 @@
       ctx.moveTo(0, y * cw + 0.5);
       ctx.lineTo(state.cols * cw, y * cw + 0.5);
       ctx.stroke();
+    }
+  }
+
+  function updateAnimations() {
+    const cw = state.cell;
+    const g = 0.09 * cw;         // gravity acceleration
+    const maxVy = 0.85 * cw;     // terminal fall speed
+    const riseSpeed = 0.22 * cw; // spawn/upward slide speed
+
+    for (let y = 0; y < state.rows; y++) {
+      for (let x = 0; x < state.cols; x++) {
+        const b = state.grid[y][x];
+        if (!b) continue;
+
+        const targetPy = b.y * cw;
+        const dy = targetPy - b.py;
+
+        if (Math.abs(dy) < 0.5) {
+          b.py = targetPy;
+          b.vy = 0;
+          continue;
+        }
+
+        if (dy > 0) {
+          // falling towards target
+          b.vy = Math.min(maxVy, b.vy + g);
+          b.py = Math.min(targetPy, b.py + b.vy);
+        } else {
+          // rising/upward slide by spawn
+          b.vy = -riseSpeed;
+          b.py = Math.max(targetPy, b.py + b.vy);
+        }
+      }
     }
   }
 
@@ -150,55 +203,85 @@
       clearTimeout(state.spawnTimer);
       state.spawnTimer = null;
     }
+    if (state.animFrameId) {
+      cancelAnimationFrame(state.animFrameId);
+      state.animFrameId = null;
+    }
     gameOverEl.classList.remove('hidden');
   }
 
-  // Physics (gravity)
-  function applyGravity() {
+  // Gravity (animated)
+  function applyGravityAnimated() {
     for (let x = 0; x < state.cols; x++) {
       const stack = [];
+      // collect existing blocks in this column from bottom up
       for (let y = state.rows - 1; y >= 0; y--) {
-        const v = state.grid[y][x];
-        if (v !== null) stack.push(v);
+        const b = state.grid[y][x];
+        if (b) stack.push(b);
       }
-      // fill column from bottom up
-      for (let y = state.rows - 1, i = 0; y >= 0; y--, i++) {
-        state.grid[y][x] = (i < stack.length) ? stack[i] : null;
+      // place them compactly from bottom
+      let i = 0;
+      for (let y = state.rows - 1; y >= 0; y--) {
+        const newBlock = (i < stack.length) ? stack[i++] : null;
+        state.grid[y][x] = newBlock;
+        if (newBlock) {
+          // update logical position (target), leave py for animation
+          newBlock.x = x;
+          if (newBlock.y !== y) {
+            newBlock.y = y;
+            // keep current py; updateAnimations will animate towards y*cell
+          }
+        }
       }
     }
   }
 
-  // Spawning
+  // Spawning (animated slide from bottom, push others up one cell)
   function spawnRow() {
-    // generate bottom row with random blocks, some gaps
-    const row = new Array(state.cols);
-    for (let x = 0; x < state.cols; x++) {
-      if (Math.random() < 0.75) {
-        row[x] = Math.floor(Math.random() * state.colorsCount);
-      } else {
-        row[x] = null;
+    const newGrid = [];
+    for (let y = 0; y < state.rows; y++) {
+      newGrid.push(new Array(state.cols).fill(null));
+    }
+
+    // push everything up one row (y decreases by 1)
+    for (let y = 0; y < state.rows - 1; y++) {
+      for (let x = 0; x < state.cols; x++) {
+        const b = state.grid[y + 1][x];
+        newGrid[y][x] = b;
+        if (b) {
+          // logical move up
+          b.x = x;
+          b.y = y;
+          // keep py to animate upward slide (from old position one cell down)
+          // b.py stays as before, updateAnimations will move it up to y*cell
+        }
       }
     }
 
-    // push everything up one row
-    for (let y = 0; y < state.rows - 1; y++) {
-      // copy next row into current slot
-      state.grid[y] = state.grid[y + 1].slice();
+    // create new bottom row emerging from below
+    const bottomY = state.rows - 1;
+    for (let x = 0; x < state.cols; x++) {
+      let b = null;
+      if (Math.random() < 0.75) {
+        b = createBlock(x, bottomY, Math.floor(Math.random() * state.colorsCount));
+        // start slightly below canvas to "slide in"
+        b.py = canvas.height + Math.random() * (state.cell * 0.6);
+      }
+      newGrid[bottomY][x] = b;
     }
-    state.grid[state.rows - 1] = row;
 
-    // apply gravity so columns remain compact
-    applyGravity();
+    state.grid = newGrid;
+
+    // compact columns (some gaps may appear due to spawning)
+    applyGravityAnimated();
 
     // game over if top row has any blocks
     for (let x = 0; x < state.cols; x++) {
-      if (state.grid[0][x] !== null) {
+      if (state.grid[0][x]) {
         gameOver();
         break;
       }
     }
-
-    requestRender();
   }
 
   function scheduleNextTick() {
@@ -242,7 +325,8 @@
         if (!inBounds(nx, ny)) continue;
         const key = `${nx},${ny}`;
         if (seen.has(key)) continue;
-        if (state.grid[ny][nx] === color) {
+        const b = state.grid[ny][nx];
+        if (b && b.color === color) {
           seen.add(key);
           q.push([nx, ny]);
         }
@@ -253,7 +337,7 @@
 
   function computeScore(size) {
     const base = size * 10;
-    const bonus = size >= 3 ? Math.floor((size - 2) * (size - 2) * 2) : 0; // grows faster with larger groups
+    const bonus = size >= 3 ? Math.floor((size - 2) * (size - 2) * 2) : 0;
     return { base, bonus, total: base + bonus };
   }
 
@@ -267,19 +351,25 @@
     const y = Math.floor(cy / state.cell);
     if (!inBounds(x, y)) return;
 
-    const color = state.grid[y][x];
-    if (color === null) return;
+    const b = state.grid[y][x];
+    if (!b) return;
 
-    const group = collectGroup(x, y, color);
+    const group = collectGroup(x, y, b.color);
     const size = group.size;
     if (size < 3) return;
 
     // remove group
     for (const key of group) {
       const [gx, gy] = key.split(',').map(Number);
-      state.grid[gy][gx] = null;
+      const rb = state.grid[gy][gx];
+      if (rb) {
+        state.grid[gy][gx] = null;
+        // no longer rendered
+      }
     }
-    applyGravity();
+
+    // apply animated gravity
+    applyGravityAnimated();
 
     // scoring
     const s = computeScore(size);
@@ -289,8 +379,6 @@
     if (size >= 20) {
       showBonusToast(`Removed ${size} blocks! +${s.bonus} bonus`);
     }
-
-    requestRender();
   }
 
   // Settings modal
@@ -315,6 +403,17 @@
     closeSettings();
   }
 
+  function startLoop() {
+    if (state.animFrameId) cancelAnimationFrame(state.animFrameId);
+    const step = () => {
+      if (!state.running) return;
+      updateAnimations();
+      render();
+      state.animFrameId = requestAnimationFrame(step);
+    };
+    state.animFrameId = requestAnimationFrame(step);
+  }
+
   // New game
   function startNewGame() {
     setOrientationByViewport();
@@ -329,8 +428,8 @@
     resizeCanvas();
 
     state.running = true;
+    startLoop();
     scheduleNextTick();
-    requestRender();
   }
 
   // Events
