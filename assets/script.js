@@ -98,17 +98,21 @@
     ctx.lineTo(x + w, y + h - rr);
     ctx.quadraticCurveTo(x + w, y + h, x + w - rr, y + h);
     ctx.lineTo(x + rr, y + h);
-    ctx.quadraticCurveTo }
+    ctx.quadraticCurveTo(x, y + h, x, y + h - rr);
+    ctx.lineTo(x, y + rr);
+    ctx.quadraticCurveTo(x, y, x + rr, y);
+    ctx.closePath();
+  }
 
   function resizeCanvas() {
     const container = document.querySelector('.game');
     const availableW = container.clientWidth - 8;
     const availableH = container.clientHeight - 8;
-    // include one extra visual row so the next row is visible while sliding in
-    const size = Math.floor(Math.min(availableW / state.cols, availableH / (state.rows + 1)));
+    // use exact grid size; off-canvas spawning will scroll in naturally
+    const size = Math.floor(Math.min(availableW / state.cols, availableH / state.rows));
     state.cell = Math.max(size, 8);
     canvas.width = state.cols * state.cell;
-    canvas.height = (state.rows + 1) * state.cell;
+    canvas.height = state.rows * state.cell;
 
     // snap positions after resize
     for (let y = 0; y < state.rows; y++) {
@@ -127,14 +131,12 @@
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     const cw = state.cell;
-    // use a uniform gap to keep blocks perfectly square and avoid clipping
-    const gap = 1; // px
 
     // background
     ctx.fillStyle = '#0f1117';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // draw blocks with rounded corners and spacing, using continuous rising offset
+    // draw blocks flush with no spacing, using continuous rising offset
     for (let y = 0; y < state.rows; y++) {
       for (let x = 0; x < state.cols; x++) {
         const b = state.grid[y][x];
@@ -142,23 +144,19 @@
 
         const drawY = b.py - state.riseOffsetPx;
 
-        // align to integer pixel grid to prevent half-pixel clipping
-        const bx = Math.round(b.x * cw) + gap;
-        const by = Math.round(drawY) + gap;
-        const size = Math.max(0, cw - 2 * gap);
-        const r = Math.max(2, Math.round(size * 0.2));
+        const bx = b.x * cw;               // integer because cw is integer
+        const by = Math.round(drawY);      // align to pixel grid for crisp edges
+        const size = cw;
+        const r = Math.max(2, Math.round(cw * 0.14));
 
-        // clamp so the right/bottom edges never overflow the canvas
-        const clampedSizeW = Math.min(size, canvas.width - bx);
-        const clampedSizeH = Math.min(size, canvas.height - by);
+        // skip drawing if entirely off-canvas (below or above)
+        if (by >= canvas.height || by + size <= 0) continue;
 
         ctx.fillStyle = state.palette[b.color % state.palette.length];
-        roundRectPath(ctx, bx, by, clampedSizeW, clampedSizeH, r);
+        roundRectPath(ctx, bx, by, size, size, r);
         ctx.fill();
       }
     }
-
-    // no grid lines; spacing provides the separation
   }
 
   function updateAnimations() {
@@ -185,8 +183,8 @@
           b.vy = Math.min(maxVy, b.vy + g);
           b.py = Math.min(targetPy, b.py + b.vy);
         } else {
-          // Do not animate upward; snap to target to avoid slide-in effect
-          b.py = targetPy;
+          // Do not animate upward here; let continuous rise bring blocks into place.
+          // Keep current py and zero vertical velocity.
           b.vy = 0;
         }
       }
