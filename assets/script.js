@@ -117,8 +117,8 @@
 
     elapsed += dt;
 
-    // half the speed again (now 12.5% of original baseline) with gentle ramp-up
-    let cellsPerSecond = 0.125 * (0.35 + elapsed * 0.015);
+    // half the speed again from previous (now 6.25% of original baseline) with gentle ramp-up
+    let cellsPerSecond = 0.0625 * (0.35 + elapsed * 0.015);
     if (spaceDown) cellsPerSecond *= 2.4;
 
     const pixelsPerSecond = cellsPerSecond * tileSize;
@@ -169,14 +169,14 @@
   }
 
   function applyGravity() {
-    // Instant gravity across visible field (no animation)
+    // Instant gravity across entire grid (no animation)
     for (let c = 0; c < GRID; c++) {
       const stack = [];
-      for (let r = GRID - 1; r >= 0; r--) {
+      for (let r = grid.length - 1; r >= 0; r--) {
         const v = grid[r][c];
         if (v) stack.push(v);
       }
-      let rptr = GRID - 1;
+      let rptr = grid.length - 1;
       for (let i = 0; i < stack.length; i++) {
         grid[rptr][c] = stack[i];
         rptr--;
