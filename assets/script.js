@@ -375,7 +375,7 @@
 
     const group = collectGroup(x, y, b.color);
     const size = group.size;
-    if (size < 3) return;
+    if (size < 2) return;
 
     for (const key of group) {
       const [gx, gy] = key.split(',').map(Number);
