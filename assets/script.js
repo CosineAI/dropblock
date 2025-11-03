@@ -136,27 +136,33 @@
     ctx.fillStyle = '#0f1117';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // draw blocks flush with no spacing, using continuous rising offset
-    for (let y = 0; y < state.rows; y++) {
+    // translate the whole scene by the rising offset to avoid per-block rounding gaps
+    ctx.save();
+    ctx.translate(0, -state.riseOffsetPx);
+
+    // draw blocks flush (no spacing) with rounded corners
+    // remove the first (top) row from rendering to avoid the visible gap at that boundary
+    for (let y = 1; y < state.rows; y++) {
       for (let x = 0; x < state.cols; x++) {
         const b = state.grid[y][x];
         if (!b) continue;
 
-        const drawY = b.py - state.riseOffsetPx;
-
-        const bx = b.x * cw;               // integer because cw is integer
-        const by = Math.round(drawY);      // align to pixel grid for crisp edges
+        const bx = b.x * cw;   // integer
+        const by = b.py;       // integer grid position, subpixel handled by translate
         const size = cw;
-        const r = Math.max(2, Math.round(cw * 0.14));
+        const r = 3;           // small fixed radius to avoid clipping artifacts
 
-        // skip drawing if entirely off-canvas (below or above)
-        if (by >= canvas.height || by + size <= 0) continue;
+        // optional clip check for performance; uses world coords minus offset
+        const drawY = by - state.riseOffsetPx;
+        if (drawY >= canvas.height || drawY + size <= 0) continue;
 
         ctx.fillStyle = state.palette[b.color % state.palette.length];
         roundRectPath(ctx, bx, by, size, size, r);
         ctx.fill();
       }
     }
+
+    ctx.restore();
   }
 
   function updateAnimations() {
