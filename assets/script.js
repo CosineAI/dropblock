@@ -2,22 +2,20 @@
 
 (function () {
   const GRID = 20;
-  const COLOR_ORDER = ["RED", "GREEN", "BLUE", "YELLOW", "WHITE", "PURPLE", "ORANGE"];
+  const COLOR_ORDER = ["RED", "GREEN", "BLUE", "YELLOW", "WHITE"];
   const PALETTE = {
     RED: "#ef4444",
     GREEN: "#22c55e",
     BLUE: "#3b82f6",
     YELLOW: "#f59e0b",
-    WHITE: "#e5e7eb",
-    PURPLE: "#a855f7",
-    ORANGE: "#f97316"
+    WHITE: "#e5e7eb"
   };
 
   let numColors = 5;
   let grid = makeGrid(GRID, GRID);
   let tileSize = 24;
-  let canvas = document.getElementById("gameCanvas");
-  let ctx = canvas.getContext("2d");
+  const canvas = document.getElementById("gameCanvas");
+  const ctx = canvas.getContext("2d");
   let offsetY = 0;
   let lastTime = 0;
   let elapsed = 0;
@@ -57,8 +55,8 @@
 
   function resize() {
     const rect = container.getBoundingClientRect();
-    const availW = rect.width - 4;
-    const availH = rect.height - 4;
+    const availW = Math.floor(rect.width) - 4;
+    const availH = Math.floor(rect.height) - 4;
     tileSize = Math.floor(Math.min(availW / GRID, availH / GRID));
     const w = tileSize * GRID;
     const h = tileSize * GRID;
@@ -75,44 +73,23 @@
     ctx.fillStyle = "#0b1220";
     ctx.fillRect(0, 0, w, h);
 
-    // blocks
+    // blocks (integer-aligned to avoid spacing jitter)
     for (let r = 0; r < GRID; r++) {
       const yBase = r * tileSize - offsetY;
       for (let c = 0; c < GRID; c++) {
         const id = grid[r][c];
-        if (id) {
-          const name = COLOR_ORDER[id - 1];
-          const col = PALETTE[name];
-          const x = c * tileSize;
-          const y = yBase;
-          if (y > -tileSize && y < h) {
-            ctx.fillStyle = col;
-            ctx.fillRect(x + 1, y + 1, tileSize - 2, tileSize - 2);
-            ctx.strokeStyle = "rgba(0,0,0,0.18)";
-            ctx.strokeRect(x + 0.5, y + 0.5, tileSize - 1, tileSize - 1);
-          }
+        if (!id) continue;
+        const name = COLOR_ORDER[id - 1];
+        const col = PALETTE[name];
+        const x = c * tileSize;
+        const y = yBase;
+        if (y > -tileSize && y < h) {
+          const xi = Math.floor(x);
+          const yi = Math.floor(y);
+          ctx.fillStyle = col;
+          ctx.fillRect(xi, yi, tileSize, tileSize);
         }
       }
-    }
-
-    // grid lines
-    ctx.strokeStyle = "rgba(255,255,255,0.06)";
-    ctx.lineWidth = 1;
-    for (let r = 0; r <= GRID; r++) {
-      const y = r * tileSize - offsetY;
-      if (y >= 0 && y <= h) {
-        ctx.beginPath();
-        ctx.moveTo(0, Math.floor(y) + 0.5);
-        ctx.lineTo(w, Math.floor(y) + 0.5);
-        ctx.stroke();
-      }
-    }
-    for (let c = 0; c <= GRID; c++) {
-      const x = c * tileSize;
-      ctx.beginPath();
-      ctx.moveTo(Math.floor(x) + 0.5, 0);
-      ctx.lineTo(Math.floor(x) + 0.5, h);
-      ctx.stroke();
     }
   }
 
@@ -121,23 +98,24 @@
 
     elapsed += dt;
 
-    // cells per second, ramping up over time
-    let cellsPerSecond = 0.35 + elapsed * 0.015;
+    // 25% of previous speed with gentle ramp-up
+    let cellsPerSecond = 0.25 * (0.35 + elapsed * 0.015);
     if (spaceDown) cellsPerSecond *= 2.4;
 
     const pixelsPerSecond = cellsPerSecond * tileSize;
     offsetY += pixelsPerSecond * dt;
 
     if (offsetY >= tileSize) {
-      // Reaching the top boundary with current top row
-      const topHasBlocks = grid[0].some(v => v !== 0);
-      if (topHasBlocks) {
-        endGame();
-        return;
-      }
+      // Advance one row and then check game-over immediately
       offsetY -= tileSize;
       grid.shift();
       grid.push(randomRow());
+
+      // Game over as soon as top row has any blocks
+      if (grid[0].some(v => v !== 0)) {
+        endGame();
+        return;
+      }
     }
   }
 
@@ -171,6 +149,7 @@
   }
 
   function applyGravity() {
+    // Instant gravity: no animation
     for (let c = 0; c < GRID; c++) {
       const stack = [];
       for (let r = GRID - 1; r >= 0; r--) {
@@ -232,7 +211,7 @@
     if (!id) return;
 
     const group = getGroup(row, col);
-    if (group.length >= 3) {
+    if (group.length >= 2) {
       for (let i = 0; i < group.length; i++) {
         grid[group[i][0]][group[i][1]] = 0;
       }
@@ -251,7 +230,7 @@
   settingsBtn.addEventListener("click", () => toggleSettings(true));
   closeSettingsBtn.addEventListener("click", () => toggleSettings(false));
   applySettingsBtn.addEventListener("click", () => {
-    numColors = parseInt(colorCountInput.value, 10);
+    numColors = Math.min(5, Math.max(2, parseInt(colorCountInput.value, 10)));
     colorCountLabel.textContent = String(numColors);
     toggleSettings(false);
     newGame();
