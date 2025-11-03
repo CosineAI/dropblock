@@ -3,16 +3,53 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>My Static Site</title>
+  <title>Rising Blocks</title>
   <link rel="stylesheet" href="assets/style.css">
 </head>
 <body>
-  <main>
-    <h1>Welcome to Your Static Site</h1>
-  </main>
-  <footer>
-    <p>&copy; 2025 Your Name</p>
-  </footer>
+  <div id="topbar">
+    <div class="brand">Rising Blocks</div>
+    <div class="actions">
+      <button id="newGameBtn" class="btn">New Game</button>
+      <button id="settingsBtn" class="btn">Settings</button>
+    </div>
+  </div>
+
+  <div id="scoreboard">
+    <div class="score-label">Score</div>
+    <div id="scoreValue">0</div>
+  </div>
+
+  <div id="gameContainer">
+    <canvas id="gameCanvas"></canvas>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <div id="settingsModal" class="modal">
+    <div class="modal-header">Settings</div>
+    <div class="modal-body">
+      <label class="field">
+        <span>Colors</span>
+        <input type="range" id="colorCount" min="2" max="7" value="5">
+        <span id="colorCountLabel">5</span>
+      </label>
+      <p class="hint">Hold Space to temporarily speed up tiles rising.</p>
+    </div>
+    <div class="modal-actions">
+      <button id="applySettings" class="btn primary">Apply</button>
+      <button id="closeSettings" class="btn">Close</button>
+    </div>
+  </div>
+
+  <div id="gameOverOverlay" class="overlay">
+    <div class="overlay-box">
+      <h2>Game Over</h2>
+      <p>Final Score: <span id="finalScore">0</span></p>
+      <button id="restartBtn" class="btn primary">New Game</button>
+    </div>
+  </div>
+
   <script src="assets/script.js"></script>
 </body>
 </html>
