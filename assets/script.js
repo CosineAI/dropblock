@@ -1,4 +1,4 @@
-// Rising Blocks Game - animated spawn and gravity, slower speed, new field size
+// Rising Blocks Game - continuous rising, animated gravity, new field size
 
 (function () {
   'use strict';
@@ -31,17 +31,18 @@
     score: 0,
     running: false,
     boosting: false,
-    // speed control (slower by ~50%)
+    // speed control: intervalMs is the time (ms) to rise one cell height
     intervalMs: 3200,
     initialIntervalMs: 3200,
     minIntervalMs: 600,
-    rampStepMs: 6,
-    speedBoostFactor: 0.35, // lower is faster while space is held
-    spawnTimer: null,
+    rampStepMs: 6,          // speed ramps up by reducing intervalMs by 6ms per row added
+    speedBoostFactor: 0.35, // while space is held, interval is multiplied by this factor
     // rendering and animation
     cell: 24,
     orientation: null,
-    animFrameId: null
+    animFrameId: null,
+    lastTs: 0,
+    riseOffsetPx: 0         // accumulated upward offset in pixels since last logical row shift
   };
 
   // Utils
@@ -89,19 +90,20 @@
 
   function resizeCanvas() {
     const container = document.querySelector('.game');
-    const availableW = container.clientWidth - 8;  // padding allowance
+    const availableW = container.clientWidth - 8;
     const availableH = container.clientHeight - 8;
     const size = Math.floor(Math.min(availableW / state.cols, availableH / state.rows));
     state.cell = Math.max(size, 8);
     canvas.width = state.cols * state.cell;
     canvas.height = state.rows * state.cell;
-    // snap current block positions to grid on resize for simplicity
+
+    // snap positions after resize
     for (let y = 0; y < state.rows; y++) {
       for (let x = 0; x < state.cols; x++) {
         const b = state.grid[y][x];
         if (b) {
           b.px = b.x * state.cell;
-          b.py = b.y * state.cell; // reset animation progress after resize
+          b.py = b.y * state.cell;
           b.vy = 0;
         }
       }
@@ -113,25 +115,24 @@
 
     const cw = state.cell;
 
-    // draw grid background subtly
     ctx.fillStyle = '#0f1117';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // draw blocks
+    // draw blocks using continuous rising offset
     for (let y = 0; y < state.rows; y++) {
       for (let x = 0; x < state.cols; x++) {
         const b = state.grid[y][x];
         if (!b) continue;
 
-        // draw block at animated position
-        ctx.fillStyle = state.palette[b.color % state.palette.length];
-        ctx.fillRect(b.x * cw, b.py, cw, cw);
+        const drawY = b.py - state.riseOffsetPx;
 
-        // subtle inner shading
+        ctx.fillStyle = state.palette[b.color % state.palette.length];
+        ctx.fillRect(b.x * cw, drawY, cw, cw);
+
         ctx.fillStyle = 'rgba(0,0,0,0.12)';
-        ctx.fillRect(b.x * cw, b.py, cw, 4);
+        ctx.fillRect(b.x * cw, drawY, cw, 4);
         ctx.fillStyle = 'rgba(255,255,255,0.12)';
-        ctx.fillRect(b.x * cw, b.py + cw - 4, cw, 4);
+        ctx.fillRect(b.x * cw, drawY + cw - 4, cw, 4);
       }
     }
 
@@ -154,9 +155,9 @@
 
   function updateAnimations() {
     const cw = state.cell;
-    const g = 0.09 * cw;         // gravity acceleration
-    const maxVy = 0.85 * cw;     // terminal fall speed
-    const riseSpeed = 0.22 * cw; // spawn/upward slide speed
+    const g = 0.09 * cw;
+    const maxVy = 0.85 * cw;
+    const riseSpeed = 0.22 * cw;
 
     for (let y = 0; y < state.rows; y++) {
       for (let x = 0; x < state.cols; x++) {
@@ -173,11 +174,9 @@
         }
 
         if (dy > 0) {
-          // falling towards target
           b.vy = Math.min(maxVy, b.vy + g);
           b.py = Math.min(targetPy, b.py + b.vy);
         } else {
-          // rising/upward slide by spawn
           b.vy = -riseSpeed;
           b.py = Math.max(targetPy, b.py + b.vy);
         }
@@ -199,10 +198,6 @@
 
   function gameOver() {
     state.running = false;
-    if (state.spawnTimer) {
-      clearTimeout(state.spawnTimer);
-      state.spawnTimer = null;
-    }
     if (state.animFrameId) {
       cancelAnimationFrame(state.animFrameId);
       state.animFrameId = null;
@@ -214,92 +209,114 @@
   function applyGravityAnimated() {
     for (let x = 0; x < state.cols; x++) {
       const stack = [];
-      // collect existing blocks in this column from bottom up
       for (let y = state.rows - 1; y >= 0; y--) {
         const b = state.grid[y][x];
         if (b) stack.push(b);
       }
-      // place them compactly from bottom
       let i = 0;
       for (let y = state.rows - 1; y >= 0; y--) {
-        const newBlock = (i < stack.length) ? stack[i++] : null;
-        state.grid[y][x] = newBlock;
-        if (newBlock) {
-          // update logical position (target), leave py for animation
-          newBlock.x = x;
-          if (newBlock.y !== y) {
-            newBlock.y = y;
-            // keep current py; updateAnimations will animate towards y*cell
-          }
+        const nb = (i < stack.length) ? stack[i++] : null;
+        state.grid[y][x] = nb;
+        if (nb) {
+          nb.x = x;
+          if (nb.y !== y) nb.y = y;
         }
       }
     }
   }
 
-  // Spawning (animated slide from bottom, push others up one cell)
-  function spawnRow() {
+  // Shift grid logically up by one cell and spawn a new bottom row
+  function shiftUpAndSpawn() {
+    const cw = state.cell;
+
     const newGrid = [];
     for (let y = 0; y < state.rows; y++) {
       newGrid.push(new Array(state.cols).fill(null));
     }
 
-    // push everything up one row (y decreases by 1)
     for (let y = 0; y < state.rows - 1; y++) {
       for (let x = 0; x < state.cols; x++) {
         const b = state.grid[y + 1][x];
         newGrid[y][x] = b;
         if (b) {
-          // logical move up
           b.x = x;
           b.y = y;
-          // keep py to animate upward slide (from old position one cell down)
-          // b.py stays as before, updateAnimations will move it up to y*cell
         }
       }
     }
 
-    // create new bottom row emerging from below
     const bottomY = state.rows - 1;
     for (let x = 0; x < state.cols; x++) {
       let b = null;
       if (Math.random() < 0.75) {
         b = createBlock(x, bottomY, Math.floor(Math.random() * state.colorsCount));
-        // start slightly below canvas to "slide in"
-        b.py = canvas.height + Math.random() * (state.cell * 0.6);
+        b.py = (bottomY + 1) * cw + Math.random() * (cw * 0.6); // start below the field
       }
       newGrid[bottomY][x] = b;
     }
 
     state.grid = newGrid;
 
-    // compact columns (some gaps may appear due to spawning)
     applyGravityAnimated();
 
-    // game over if top row has any blocks
+    // ramp speed
+    state.intervalMs = Math.max(state.minIntervalMs, state.intervalMs - state.rampStepMs);
+
+    // check for game over (top row occupied)
     for (let x = 0; x < state.cols; x++) {
       if (state.grid[0][x]) {
         gameOver();
-        break;
+        return;
       }
     }
   }
 
-  function scheduleNextTick() {
+  // Initial bottom row to begin rising immediately
+  function seedBottomRow() {
+    const cw = state.cell;
+    const y = state.rows - 1;
+    for (let x = 0; x < state.cols; x++) {
+      if (Math.random() < 0.75) {
+        const b = createBlock(x, y, Math.floor(Math.random() * state.colorsCount));
+        b.py = (y + 1) * cw + Math.random() * (cw * 0.6); // start below and slide in
+        state.grid[y][x] = b;
+      }
+    }
+    applyGravityAnimated();
+  }
+
+  function updateRising(dtMs) {
     if (!state.running) return;
-    if (state.spawnTimer) {
-      clearTimeout(state.spawnTimer);
+    const cw = state.cell;
+    const effectiveInterval = state.boosting ? Math.max(120, state.intervalMs * state.speedBoostFactor) : state.intervalMs;
+    const pxPerMs = cw / effectiveInterval; // rise one cell per intervalMs
+    state.riseOffsetPx += pxPerMs * dtMs;
+
+    // game over if any block visually reaches the top
+    for (let y = 0; y < state.rows; y++) {
+      for (let x = 0; x < state.cols; x++) {
+        const b = state.grid[y][x];
+        if (!b) continue;
+        const drawY = b.py - state.riseOffsetPx;
+        if (drawY <= 0) {
+          gameOver();
+          return;
+        }
+      }
     }
-    let delay = Math.max(state.minIntervalMs, state.intervalMs);
-    if (state.boosting) {
-      delay = Math.max(120, Math.floor(delay * state.speedBoostFactor));
+
+    // when we've risen a full cell, rebase and logically shift up
+    while (state.riseOffsetPx >= cw && state.running) {
+      state.riseOffsetPx -= cw;
+      // keep visual continuity: lower b.py by one cell
+      for (let yy = 0; yy < state.rows; yy++) {
+        for (let xx = 0; xx < state.cols; xx++) {
+          const b = state.grid[yy][xx];
+          if (b) b.py -= cw;
+        }
+      }
+      shiftUpAndSpawn();
     }
-    state.spawnTimer = setTimeout(() => {
-      if (!state.running) return;
-      spawnRow();
-      // ramp up speed slowly
-      state.intervalMs = Math.max(state.minIntervalMs, state.intervalMs - state.rampStepMs);
-      scheduleNextTick();
-    }, delay);
   }
 
   // Interaction - click to remove groups
@@ -358,20 +375,14 @@
     const size = group.size;
     if (size < 3) return;
 
-    // remove group
     for (const key of group) {
       const [gx, gy] = key.split(',').map(Number);
       const rb = state.grid[gy][gx];
-      if (rb) {
-        state.grid[gy][gx] = null;
-        // no longer rendered
-      }
+      if (rb) state.grid[gy][gx] = null;
     }
 
-    // apply animated gravity
     applyGravityAnimated();
 
-    // scoring
     const s = computeScore(size);
     state.score += s.total;
     updateScoreUI();
@@ -398,17 +409,23 @@
     state.colorsCount = newColors;
     state.palette = makePalette(state.colorsCount);
     state.initialIntervalMs = newInitial;
-    // start a fresh game to apply changes
     startNewGame();
     closeSettings();
   }
 
   function startLoop() {
     if (state.animFrameId) cancelAnimationFrame(state.animFrameId);
+    state.lastTs = performance.now();
     const step = () => {
       if (!state.running) return;
+      const now = performance.now();
+      const dt = now - state.lastTs;
+      state.lastTs = now;
+
       updateAnimations();
+      updateRising(dt);
       render();
+
       state.animFrameId = requestAnimationFrame(step);
     };
     state.animFrameId = requestAnimationFrame(step);
@@ -427,9 +444,13 @@
     resetGrid();
     resizeCanvas();
 
+    state.riseOffsetPx = 0;
+
+    // seed initial bottom content so rising starts visually
+    seedBottomRow();
+
     state.running = true;
     startLoop();
-    scheduleNextTick();
   }
 
   // Events
@@ -453,7 +474,6 @@
   window.addEventListener('resize', () => {
     const changed = setOrientationByViewport();
     if (changed) {
-      // adopt new board size on orientation change
       startNewGame();
     } else {
       resizeCanvas();
@@ -464,20 +484,13 @@
   document.addEventListener('keydown', (e) => {
     if (e.code === 'Space') {
       e.preventDefault();
-      if (!state.boosting) {
-        state.boosting = true;
-        // reschedule with faster interval
-        scheduleNextTick();
-      }
+      state.boosting = true;
     }
   });
   document.addEventListener('keyup', (e) => {
     if (e.code === 'Space') {
       e.preventDefault();
-      if (state.boosting) {
-        state.boosting = false;
-        scheduleNextTick();
-      }
+      state.boosting = false;
     }
   });
 
