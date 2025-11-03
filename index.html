@@ -1,18 +1,50 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>My Static Site</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Rising Blocks</title>
   <link rel="stylesheet" href="assets/style.css">
 </head>
 <body>
-  <main>
-    <h1>Welcome to Your Static Site</h1>
-  </main>
-  <footer>
-    <p>&copy; 2025 Your Name</p>
-  </footer>
+  <header class="topbar">
+    <div class="brand">Rising Blocks</div>
+    <div class="actions">
+      <button id="newGameBtn" class="btn">New Game</button>
+      <button id="settingsBtn" class="btn btn-secondary">Settings</button>
+    </div>
+  </header>
+
+  <section class="hud">
+    <div class="score">Score: <span id="scoreValue">0</span></div>
+    <div id="gameOver" class="gameover hidden">Game Over</div>
+    <div id="bonusToast" class="bonus-toast"></div>
+  </section>
+
+  <section class="game">
+    <canvas id="gameCanvas"></canvas>
+  </section>
+
+  <div id="settingsModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+    <div class="modal-card">
+      <h2 id="settingsTitle">Settings</h2>
+      <div class="form-row">
+        <label for="colorCount">Number of colors</label>
+        <input type="range" id="colorCount" min="3" max="10" step="1" value="5">
+        <span id="colorCountVal" class="value">5</span>
+      </div>
+      <div class="form-row">
+        <label for="initialSpeed">Initial spawn interval (ms)</label>
+        <input type="range" id="initialSpeed" min="500" max="3000" step="100" value="1600">
+        <span id="initialSpeedVal" class="value">1600</span>
+      </div>
+      <div class="modal-actions">
+        <button id="applySettingsBtn" class="btn">Apply</button>
+        <button id="closeSettingsBtn" class="btn btn-secondary">Close</button>
+      </div>
+    </div>
+  </div>
+
   <script src="assets/script.js"></script>
 </body>
 </html>
