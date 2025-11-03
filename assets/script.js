@@ -12,7 +12,7 @@
   };
 
   let numColors = 5;
-  let grid = makeGrid(GRID, GRID);
+  let grid = makeGrid(GRID + 1, GRID); // extra buffer row for continuous entrance
   let tileSize = 24;
   const canvas = document.getElementById("gameCanvas");
   const ctx = canvas.getContext("2d");
@@ -69,12 +69,16 @@
     const h = canvas.height;
     ctx.clearRect(0, 0, w, h);
 
+    // ensure no canvas-level shadow
+    ctx.shadowBlur = 0;
+    ctx.shadowColor = "transparent";
+
     // background
     ctx.fillStyle = "#0b1220";
     ctx.fillRect(0, 0, w, h);
 
     // blocks (integer-aligned to avoid spacing jitter)
-    for (let r = 0; r < GRID; r++) {
+    for (let r = 0; r < grid.length; r++) {
       const yBase = r * tileSize - offsetY;
       for (let c = 0; c < GRID; c++) {
         const id = grid[r][c];
@@ -91,6 +95,21 @@
         }
       }
     }
+
+    // light gray borders between blocks (crisp, pixel-aligned)
+    ctx.fillStyle = "#d1d5db";
+    // horizontal lines
+    for (let r = 0; r <= GRID; r++) {
+      const y = Math.floor(r * tileSize - offsetY);
+      if (y >= 0 && y <= h) {
+        ctx.fillRect(0, y, w, 1);
+      }
+    }
+    // vertical lines
+    for (let c = 0; c <= GRID; c++) {
+      const x = Math.floor(c * tileSize);
+      ctx.fillRect(x, 0, 1, h);
+    }
   }
 
   function update(dt) {
@@ -98,20 +117,21 @@
 
     elapsed += dt;
 
-    // 25% of previous speed with gentle ramp-up
-    let cellsPerSecond = 0.25 * (0.35 + elapsed * 0.015);
+    // half the speed again (now 12.5% of original baseline) with gentle ramp-up
+    let cellsPerSecond = 0.125 * (0.35 + elapsed * 0.015);
     if (spaceDown) cellsPerSecond *= 2.4;
 
     const pixelsPerSecond = cellsPerSecond * tileSize;
     offsetY += pixelsPerSecond * dt;
 
     if (offsetY >= tileSize) {
-      // Advance one row and then check game-over immediately
       offsetY -= tileSize;
+
+      // advance rows for continuous entrance
       grid.shift();
       grid.push(randomRow());
 
-      // Game over as soon as top row has any blocks
+      // game over as soon as any block reaches the top
       if (grid[0].some(v => v !== 0)) {
         endGame();
         return;
@@ -123,8 +143,8 @@
     const color = grid[r0][c0];
     if (!color) return [];
     const group = [];
-    const seen = new Array(GRID);
-    for (let r = 0; r < GRID; r++) seen[r] = new Array(GRID).fill(false);
+    const seen = new Array(grid.length);
+    for (let r = 0; r < grid.length; r++) seen[r] = new Array(GRID).fill(false);
     const q = [[r0, c0]];
     seen[r0][c0] = true;
 
@@ -139,7 +159,7 @@
       ];
       for (let i = 0; i < 4; i++) {
         const rr = n[i][0], cc = n[i][1];
-        if (rr >= 0 && rr < GRID && cc >= 0 && cc < GRID && !seen[rr][cc] && grid[rr][cc] === color) {
+        if (rr >= 0 && rr < grid.length && cc >= 0 && cc < GRID && !seen[rr][cc] && grid[rr][cc] === color) {
           seen[rr][cc] = true;
           q.push([rr, cc]);
         }
@@ -149,7 +169,7 @@
   }
 
   function applyGravity() {
-    // Instant gravity: no animation
+    // Instant gravity across visible field (no animation)
     for (let c = 0; c < GRID; c++) {
       const stack = [];
       for (let r = GRID - 1; r >= 0; r--) {
@@ -190,7 +210,9 @@
   }
 
   function newGame() {
-    grid = makeGrid(GRID, GRID);
+    grid = makeGrid(GRID + 1, GRID);
+    // seed incoming buffer row off-canvas
+    grid[GRID] = randomRow();
     offsetY = 0;
     elapsed = 0;
     score = 0;
@@ -206,7 +228,7 @@
     const y = ev.clientY - rect.top;
     const col = Math.floor(x / tileSize);
     const row = Math.floor((y + offsetY) / tileSize);
-    if (row < 0 || row >= GRID || col < 0 || col >= GRID) return;
+    if (row < 0 || row >= grid.length || col < 0 || col >= GRID) return;
     const id = grid[row][col];
     if (!id) return;
 
@@ -227,6 +249,7 @@
 
   // events
   newGameBtn.addEventListener("click", () => newGame());
+  restartBtn.addEventListener("click", () => newGame());
   settingsBtn.addEventListener("click", () => toggleSettings(true));
   closeSettingsBtn.addEventListener("click", () => toggleSettings(false));
   applySettingsBtn.addEventListener("click", () => {
