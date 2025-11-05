@@ -14,7 +14,7 @@
     WHITE: "#e5e7eb"
   };
 
-  let numColors = 5;
+  let numColors = 4;
   let grid = makeGrid(gridHeight + 1, gridWidth); // extra buffer row for continuous entrance
   let fallOffsets = makeGrid(gridHeight + 1, gridWidth); // per-cell falling animation offsets
   let tileSize = 24;
@@ -337,6 +337,7 @@
   });
 
   // init
+  numColors = parseInt(difficultySelect.value, 10);
   gridWidthLabel.textContent = String(gridWidth);
   gridHeightLabel.textContent = String(gridHeight);
   resize();
