@@ -33,8 +33,7 @@
   const newGameBtn = document.getElementById("newGameBtn");
   const settingsBtn = document.getElementById("settingsBtn");
   const settingsModal = document.getElementById("settingsModal");
-  const colorCountInput = document.getElementById("colorCount");
-  const colorCountLabel = document.getElementById("colorCountLabel");
+  const difficultySelect = document.getElementById("difficulty");
   const gridWidthInput = document.getElementById("gridWidth");
   const gridWidthLabel = document.getElementById("gridWidthLabel");
   const gridHeightInput = document.getElementById("gridHeight");
@@ -302,8 +301,7 @@
   settingsBtn.addEventListener("click", () => toggleSettings(true));
   closeSettingsBtn.addEventListener("click", () => toggleSettings(false));
   applySettingsBtn.addEventListener("click", () => {
-    numColors = Math.min(5, Math.max(2, parseInt(colorCountInput.value, 10)));
-    colorCountLabel.textContent = String(numColors);
+    numColors = parseInt(difficultySelect.value, 10);
 
     const w = Math.min(30, Math.max(8, parseInt(gridWidthInput.value, 10)));
     const h = Math.min(30, Math.max(10, parseInt(gridHeightInput.value, 10)));
@@ -314,9 +312,6 @@
 
     toggleSettings(false);
     newGame();
-  });
-  colorCountInput.addEventListener("input", () => {
-    colorCountLabel.textContent = String(colorCountInput.value);
   });
   gridWidthInput.addEventListener("input", () => {
     gridWidthLabel.textContent = String(gridWidthInput.value);
@@ -342,7 +337,6 @@
   });
 
   // init
-  colorCountLabel.textContent = String(numColors);
   gridWidthLabel.textContent = String(gridWidth);
   gridHeightLabel.textContent = String(gridHeight);
   resize();

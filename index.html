@@ -30,9 +30,12 @@
     <div class="modal-header">Settings</div>
     <div class="modal-body">
       <label class="field">
-        <span>Colors</span>
-        <input type="range" id="colorCount" min="2" max="5" value="5">
-        <span id="colorCountLabel">5</span>
+        <span>Difficulty</span>
+        <select id="difficulty">
+          <option value="3">Easy (3 colors)</option>
+          <option value="4">Medium (4 colors)</option>
+          <option value="5" selected>Hard (5 colors)</option>
+        </select>
       </label>
       <label class="field">
         <span>Grid Width</span>
