@@ -85,7 +85,7 @@
     ctx.fillStyle = "#0b1220";
     ctx.fillRect(0, 0, w, h);
 
-    // blocks (integer-aligned to avoid spacing jitter)
+    // blocks (draw with subpixel positions for smoother upward movement)
     for (let r = 0; r < grid.length; r++) {
       const yBase = r * tileSize - offsetY;
       for (let c = 0; c < gridWidth; c++) {
@@ -96,10 +96,8 @@
         const x = c * tileSize;
         const y = yBase + (fallOffsets[r][c] || 0);
         if (y > -tileSize && y < h) {
-          const xi = Math.floor(x);
-          const yi = Math.floor(y);
           ctx.fillStyle = col;
-          ctx.fillRect(xi, yi, tileSize, tileSize);
+          ctx.fillRect(x, y, tileSize, tileSize);
         }
       }
     }
@@ -126,8 +124,14 @@
     elapsed += dt;
 
     // slower ramp-up (half of previous ramp), with low baseline speed
-    let cellsPerSecond = 0.0625 * (0.35 + elapsed * 0.0075);
-    if (spaceDown) cellsPerSecond *= 2.4;
+    const BASE_CPS = 0.0625 * 0.35; // baseline cells/sec at t=0
+    const RAMP_RATE = 0.0625 * 0.0075; // cells/sec increase per second
+    const ACCEL_MULT = 10; // Spacebar fixed speed: 10x the beginning speed
+    let cellsPerSecond = BASE_CPS + elapsed * RAMP_RATE;
+    if (spaceDown) {
+      // Fixed speed while Space is held: does not include ramp-up
+      cellsPerSecond = BASE_CPS * ACCEL_MULT;
+    }
 
     const pixelsPerSecond = cellsPerSecond * tileSize;
     offsetY += pixelsPerSecond * dt;
