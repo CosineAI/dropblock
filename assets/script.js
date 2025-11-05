@@ -127,7 +127,7 @@
     // slower ramp-up (half of previous ramp), with low baseline speed
     const BASE_CPS = 0.0625 * 0.35; // baseline cells/sec at t=0
     const RAMP_RATE = 0.0625 * 0.0075; // cells/sec increase per second
-    const ACCEL_MULT = 10; // Spacebar fixed speed: 10x the beginning speed
+    const ACCEL_MULT = 20; // Spacebar fixed speed: 20x the beginning speed
     let cellsPerSecond = BASE_CPS + elapsed * RAMP_RATE;
     if (spaceDown) {
       // Fixed speed while Space is held: does not include ramp-up
