@@ -34,6 +34,7 @@
   const settingsBtn = document.getElementById("settingsBtn");
   const settingsModal = document.getElementById("settingsModal");
   const difficultySelect = document.getElementById("difficulty");
+  const difficultyBadge = document.getElementById("difficultyBadge");
   const gridWidthInput = document.getElementById("gridWidth");
   const gridWidthLabel = document.getElementById("gridWidthLabel");
   const gridHeightInput = document.getElementById("gridHeight");
@@ -299,6 +300,17 @@
     else settingsModal.classList.remove("open");
   }
 
+  function updateDifficultyBadge() {
+    const map = {3: "Easy", 4: "Medium", 5: "Hard"};
+    const label = map[numColors] || String(numColors);
+    if (difficultyBadge) {
+      difficultyBadge.textContent = label;
+      difficultyBadge.classList.remove("badge-easy","badge-medium","badge-hard");
+      if (numColors === 3) difficultyBadge.classList.add("badge-easy");
+      else if (numColors === 4) difficultyBadge.classList.add("badge-medium");
+      else if (numColors === 5) difficultyBadge.classList.add("badge-hard");
+    }
+  }
   // events
   newGameBtn.addEventListener("click", () => newGame());
   restartBtn.addEventListener("click", () => newGame());
@@ -314,6 +326,7 @@
     gridWidthLabel.textContent = String(gridWidth);
     gridHeightLabel.textContent = String(gridHeight);
 
+    updateDifficultyBadge();
     toggleSettings(false);
     newGame();
   });
@@ -342,6 +355,7 @@
 
   // init
   numColors = parseInt(difficultySelect.value, 10);
+  updateDifficultyBadge();
   gridWidthLabel.textContent = String(gridWidth);
   gridHeightLabel.textContent = String(gridHeight);
   resize();
