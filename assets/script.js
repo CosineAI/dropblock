@@ -13,10 +13,12 @@
     YELLOW: "#f59e0b",
     WHITE: "#e5e7eb"
   };
-
+  const FALL_BASE_DURATION = 0.18;
   let numColors = 4;
   let grid = makeGrid(gridHeight + 1, gridWidth); // extra buffer row for continuous entrance
-  let fallOffsets = makeGrid(gridHeight + 1, gridWidth); // per-cell falling animation offsets
+  let fallOffsets = makeGrid(gridHeight + 1, gridWidth); // per-cell falling animation offsets (current frame)
+  let fallStartOffsets = makeGrid(gridHeight + 1, gridWidth); // starting offsets for easing
+  let fallProgress = makeGrid(gridHeight + 1, gridWidth); // 0..1 progress per falling cell
   let tileSize = 24;
   const canvas = document.getElementById("gameCanvas");
   const ctx = canvas.getContext("2d");
@@ -135,36 +137,51 @@
     }
 
     const pixelsPerSecond = cellsPerSecond * tileSize;
-    offsetY += pixelsPerSecond * dt;
 
-    if (offsetY >= tileSize) {
-      offsetY -= tileSize;
+    if (!falling) {
+      offsetY += pixelsPerSecond * dt;
 
-      // advance rows for continuous entrance
-      grid.shift();
-      fallOffsets.shift();
-      grid.push(randomRow());
-      fallOffsets.push(new Array(gridWidth).fill(0));
+      if (offsetY >= tileSize) {
+        offsetY -= tileSize;
 
-      // game over as soon as any block reaches the top
-      if (grid[0].some(v => v !== 0)) {
-        endGame();
-        return;
+        // advance rows for continuous entrance
+        grid.shift();
+        fallOffsets.shift();
+        fallStartOffsets.shift();
+        fallProgress.shift();
+        grid.push(randomRow());
+        fallOffsets.push(new Array(gridWidth).fill(0));
+        fallStartOffsets.push(new Array(gridWidth).fill(0));
+        fallProgress.push(new Array(gridWidth).fill(1));
+
+        // game over as soon as any block reaches the top
+        if (grid[0].some(v => v !== 0)) {
+          endGame();
+          return;
+        }
       }
     }
 
-    // falling animation update
+    // falling animation update (ease-out by distance)
     if (falling) {
       let anyFalling = false;
-      const fallSpeed = tileSize * 14; // pixels/sec
       for (let r = 0; r < grid.length; r++) {
         for (let c = 0; c < gridWidth; c++) {
-          const off = fallOffsets[r][c];
-          if (off < 0) {
-            let next = off + fallSpeed * dt;
-            if (next >= 0) next = 0;
-            fallOffsets[r][c] = next;
-            if (next < 0) anyFalling = true;
+          const start = fallStartOffsets[r][c];
+          if (start < 0) {
+            const dropCells = Math.max(1, Math.abs(start) / tileSize);
+            const duration = FALL_BASE_DURATION * dropCells; // scale duration by drop distance
+            let p = fallProgress[r][c] || 0;
+            p = Math.min(1, p + dt / duration);
+            fallProgress[r][c] = p;
+            const eased = easeOutCubic(p);
+            const current = start * (1 - eased);
+            fallOffsets[r][c] = current;
+            if (p < 1) anyFalling = true;
+            else {
+              fallStartOffsets[r][c] = 0;
+              fallOffsets[r][c] = 0;
+            }
           }
         }
       }
@@ -203,29 +220,34 @@
     return group;
   }
 
+  
+      function easeOutCubic(t) {
+    return 1 - Math.pow(1 - t, 3);
+  }
+
   function applyGravityAnimated() {
-    // Compute gravity across entire grid and set per-cell falling offsets
-    const newCol = new Array(grid.length);
     for (let c = 0; c < gridWidth; c++) {
-      // collect nonzero tiles with their original rows
       const stack = [];
       for (let r = grid.length - 1; r >= 0; r--) {
         const v = grid[r][c];
         if (v) stack.push({ v, r });
       }
-      // write back from bottom up
       let rptr = grid.length - 1;
       for (let i = 0; i < stack.length; i++) {
         const item = stack[i];
         grid[rptr][c] = item.v;
         const drop = item.r - rptr;
-        fallOffsets[rptr][c] = drop > 0 ? -drop * tileSize : 0;
+        const startOff = drop > 0 ? -drop * tileSize : 0;
+        fallStartOffsets[rptr][c] = startOff;
+        fallOffsets[rptr][c] = startOff;
+        fallProgress[rptr][c] = startOff < 0 ? 0 : 1;
         rptr--;
       }
-      // fill rest as zero
       for (; rptr >= 0; rptr--) {
         grid[rptr][c] = 0;
+        fallStartOffsets[rptr][c] = 0;
         fallOffsets[rptr][c] = 0;
+        fallProgress[rptr][c] = 1;
       }
     }
     falling = true;
@@ -256,6 +278,8 @@
   function newGame() {
     grid = makeGrid(gridHeight + 1, gridWidth);
     fallOffsets = makeGrid(gridHeight + 1, gridWidth);
+    fallStartOffsets = makeGrid(gridHeight + 1, gridWidth);
+    fallProgress = makeGrid(gridHeight + 1, gridWidth);
     // seed visible bottom 4 rows with blocks
     const seedRows = Math.min(4, gridHeight);
     for (let i = 0; i < seedRows; i++) {
