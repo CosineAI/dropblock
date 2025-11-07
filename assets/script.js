@@ -14,7 +14,7 @@
     WHITE: "#e5e7eb"
   };
   const FALL_BASE_DURATION = 0.18;
-  let numColors = 4;
+  let numColors = 3;
   let grid = makeGrid(gridHeight + 1, gridWidth); // extra buffer row for continuous entrance
   let fallOffsets = makeGrid(gridHeight + 1, gridWidth); // per-cell falling animation offsets (current frame)
   let fallStartOffsets = makeGrid(gridHeight + 1, gridWidth); // starting offsets for easing
